@@ -21,6 +21,9 @@ public enum FileAction
     [System.Text.Json.Serialization.JsonStringEnumMemberName("close")]
     Close,
 
+    [System.Text.Json.Serialization.JsonStringEnumMemberName("cancel")]
+    Cancel,
+
     [System.Text.Json.Serialization.JsonStringEnumMemberName("create")]
     Create,
 

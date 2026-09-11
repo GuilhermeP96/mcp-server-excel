@@ -94,6 +94,17 @@ internal sealed class Program
             config.AddCommand<BatchCommand>("batch")
                 .WithDescription("Execute multiple commands from a JSON file or stdin. Outputs NDJSON (one result per line).");
 
+            config.AddBranch("datamodel-job", branch =>
+            {
+                branch.SetDescription("Run observable asynchronous Power Pivot measure updates.");
+                branch.AddCommand<DataModelJobStartCommand>("start")
+                    .WithDescription("Start a background measure update job and return its operation ID.");
+                branch.AddCommand<DataModelJobStatusCommand>("status")
+                    .WithDescription("Read current item, elapsed time, save state, and errors.");
+                branch.AddCommand<DataModelJobCancelCommand>("cancel")
+                    .WithDescription("Request idempotent cancellation of a measure update job.");
+            });
+
             // Session commands
             config.AddBranch("session", branch =>
             {

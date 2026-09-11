@@ -55,6 +55,7 @@ public sealed class ServiceBridgeCancellationTests : IDisposable
         Assert.Equal("Cancelled", response.ErrorCategory);
         Assert.Contains("cancelled", response.ErrorMessage, StringComparison.OrdinalIgnoreCase);
         Assert.True(backend.Disposed);
+        Assert.True(backend.ObservedCancellationToken.IsCancellationRequested);
     }
 
     [Fact]
@@ -152,6 +153,8 @@ public sealed class ServiceBridgeCancellationTests : IDisposable
 
         public bool Disposed { get; private set; }
 
+        public CancellationToken ObservedCancellationToken { get; private set; }
+
         private readonly TaskCompletionSource<ServiceResponse> _response =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly bool _completeImmediately;
@@ -161,8 +164,9 @@ public sealed class ServiceBridgeCancellationTests : IDisposable
             _completeImmediately = completeImmediately;
         }
 
-        public Task<ServiceResponse> ProcessAsync(ServiceRequest request)
+        public Task<ServiceResponse> ProcessAsync(ServiceRequest request, CancellationToken cancellationToken)
         {
+            ObservedCancellationToken = cancellationToken;
             if (_completeImmediately)
             {
                 return Task.FromResult(new ServiceResponse
@@ -207,7 +211,7 @@ public sealed class ServiceBridgeCancellationTests : IDisposable
 
         public bool Disposed { get; private set; }
 
-        public Task<ServiceResponse> ProcessAsync(ServiceRequest request)
+        public Task<ServiceResponse> ProcessAsync(ServiceRequest request, CancellationToken cancellationToken)
         {
             _requestStarted.TrySetResult(true);
             return _response.Task;

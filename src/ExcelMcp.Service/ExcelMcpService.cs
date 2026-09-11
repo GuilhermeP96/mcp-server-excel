@@ -31,7 +31,7 @@ namespace Sbroenne.ExcelMcp.Service;
 /// The named pipe enables cross-thread communication between the host's request threads
 /// and the service's STA thread (required for COM interop).
 /// </summary>
-public sealed class ExcelMcpService : IDisposable
+public sealed partial class ExcelMcpService : IDisposable
 {
     private readonly SessionManager _sessionManager = new();
     private readonly ConcurrentDictionary<string, byte> _knownSessionIds = new(StringComparer.Ordinal);
@@ -252,8 +252,11 @@ public sealed class ExcelMcpService : IDisposable
     /// Processes a service request directly (in-process, no pipe).
     /// Used by the MCP Server for direct in-process communication.
     /// </summary>
-    public async Task<ServiceResponse> ProcessAsync(ServiceRequest request)
+    public async Task<ServiceResponse> ProcessAsync(
+        ServiceRequest request,
+        CancellationToken cancellationToken = default)
     {
+        using var cancellationScope = Sbroenne.ExcelMcp.ComInterop.OperationCancellationContext.Push(cancellationToken);
         try
         {
             // Route command
@@ -261,12 +264,16 @@ public sealed class ExcelMcpService : IDisposable
             var category = parts[0];
             var action = parts.Length > 1 ? parts[1] : "";
 
-            ServiceRegistry.ValidateCommandArguments(request.Command, request.Args);
+            if (!string.Equals(category, "measurejob", StringComparison.Ordinal))
+            {
+                ServiceRegistry.ValidateCommandArguments(request.Command, request.Args);
+            }
 
             ServiceResponse response = category switch
             {
                 "service" => HandleServiceCommand(action),
                 "session" => HandleSessionCommand(action, request),
+                "measurejob" => HandleMeasureJobCommand(action, request),
                 "sheet" or "sheetstyle" => await DispatchSheetAsync(action, request),
                 "range" or "rangeedit" or "rangeformat" or "rangelink" => await DispatchRangeAsync(action, request),
                 "table" or "tablecolumn" => await DispatchTableAsync(action, request),
@@ -390,7 +397,7 @@ public sealed class ExcelMcpService : IDisposable
 
     private ServiceResponse HandleSessionCommand(string action, ServiceRequest request)
     {
-        if (action is not ("create" or "open" or "close" or "list" or "test"))
+        if (action is not ("create" or "open" or "close" or "cancel" or "list" or "test"))
         {
             return new ServiceResponse
             {
@@ -406,6 +413,7 @@ public sealed class ExcelMcpService : IDisposable
             "create" => HandleSessionCreate(request),
             "open" => HandleSessionOpen(request),
             "close" => HandleSessionClose(request),
+            "cancel" => HandleSessionCancel(request),
             "list" => HandleSessionList(),
             "test" => HandleSessionTest(request),
             _ => throw new InvalidOperationException($"Unhandled session action: {action}")
@@ -578,6 +586,43 @@ public sealed class ExcelMcpService : IDisposable
                 Result = JsonSerializer.Serialize(
                     new { success = true, sessionId = request.SessionId, message = "Session already closed." },
                     ServiceProtocol.JsonOptions)
+            };
+        }
+
+        return new ServiceResponse
+        {
+            Success = false,
+            ErrorCategory = "SessionNotFound",
+            ErrorMessage = $"Session '{request.SessionId}' not found"
+        };
+    }
+
+    private ServiceResponse HandleSessionCancel(ServiceRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.SessionId))
+        {
+            return new ServiceResponse
+            {
+                Success = false,
+                ErrorCategory = "InvalidInput",
+                ErrorMessage = "sessionId is required"
+            };
+        }
+
+        bool closed = _sessionManager.CloseSession(request.SessionId, save: false, force: true);
+        if (closed || _knownSessionIds.ContainsKey(request.SessionId))
+        {
+            return new ServiceResponse
+            {
+                Success = true,
+                Result = JsonSerializer.Serialize(new
+                {
+                    success = true,
+                    sessionId = request.SessionId,
+                    cancelled = true,
+                    saved = false,
+                    message = "Session operation cancelled and unsaved workbook changes discarded."
+                }, ServiceProtocol.JsonOptions)
             };
         }
 
@@ -1234,6 +1279,7 @@ public sealed class ExcelMcpService : IDisposable
         if (_disposed) return;
         _disposed = true;
 
+        CancelMeasureJobs();
         _shutdownCts.Cancel();
         _sessionManager.Dispose();
         _shutdownCts.Dispose();

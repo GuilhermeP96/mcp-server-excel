@@ -289,7 +289,8 @@ public partial class DataModelCommands
     /// <inheritdoc />
     public OperationResult UpdateMeasure(IExcelBatch batch, string measureName,
                                string? daxFormula = null, string? formatType = null,
-                               string? description = null, bool formatDax = false)
+                               string? description = null, bool formatDax = false,
+                               IProgress<ProgressInfo>? progress = null)
     {
         ValidateMeasureFormatType(formatType);
 
@@ -335,7 +336,14 @@ public partial class DataModelCommands
                         // This fixes issues on European locales where semicolon is the list separator
                         var daxTranslator = new DaxFormulaTranslator(ctx.App);
                         string localizedFormula = daxTranslator.TranslateToLocale(daxToSave);
-                        measure.Formula = localizedFormula;
+                        using var heartbeat = new OperationProgressHeartbeat(
+                            progress,
+                            $"Updating measure '{measureName}'",
+                            0,
+                            1);
+                        ExecuteCancellableModelMutation(
+                            () => measure.Formula = localizedFormula,
+                            ct);
                         updates.Add("Formula updated");
                     }
 
@@ -374,6 +382,192 @@ public partial class DataModelCommands
                 return new OperationResult { Success = true, FilePath = batch.WorkbookPath };
             });
         });
+    }
+
+    /// <inheritdoc />
+    public DataModelMeasureBatchUpdateResult UpdateMeasures(
+        IExcelBatch batch,
+        List<DataModelMeasureUpdate> updates,
+        IProgress<ProgressInfo>? progress = null)
+    {
+        ValidateMeasureUpdates(updates);
+
+        var preparedUpdates = updates.Select(update => new DataModelMeasureUpdate
+        {
+            MeasureName = update.MeasureName.Trim(),
+            DaxFormula = !string.IsNullOrEmpty(update.DaxFormula) && update.FormatDax
+                ? DaxFormatter.FormatAsync(update.DaxFormula).GetAwaiter().GetResult()
+                : update.DaxFormula,
+            FormatType = update.FormatType,
+            Description = update.Description,
+            FormatDax = false
+        }).ToList();
+
+        return ExecuteWithRetry(() => batch.Execute((ctx, ct) =>
+        {
+            Excel.Model? model = null;
+            var outcomes = new List<DataModelMeasureUpdateOutcome>(preparedUpdates.Count);
+
+            try
+            {
+                if (!HasDataModelTables(ctx.Book))
+                {
+                    throw new InvalidOperationException(DataModelErrorMessages.NoDataModelTables());
+                }
+
+                model = ctx.Book.Model;
+                var daxTranslator = new DaxFormulaTranslator(ctx.App);
+
+                for (int index = 0; index < preparedUpdates.Count; index++)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var update = preparedUpdates[index];
+                    Excel.ModelMeasure? measure = null;
+                    object? formatObject = null;
+                    try
+                    {
+                        measure = FindModelMeasure(model!, update.MeasureName);
+                        if (measure == null)
+                        {
+                            throw new InvalidOperationException(DataModelErrorMessages.MeasureNotFound(update.MeasureName));
+                        }
+
+                        var changedProperties = new List<string>();
+                        if (!string.IsNullOrEmpty(update.DaxFormula))
+                        {
+                            var localizedFormula = daxTranslator.TranslateToLocale(update.DaxFormula);
+                            var currentFormula = measure.Formula?.ToString() ?? string.Empty;
+                            if (!string.Equals(currentFormula, localizedFormula, StringComparison.Ordinal))
+                            {
+                                using var heartbeat = new OperationProgressHeartbeat(
+                                    progress,
+                                    $"Updating measure '{update.MeasureName}'",
+                                    index,
+                                    preparedUpdates.Count);
+                                ExecuteCancellableModelMutation(
+                                    () => measure.Formula = localizedFormula,
+                                    ct);
+                                changedProperties.Add("Formula");
+                            }
+                        }
+
+                        if (!string.IsNullOrEmpty(update.FormatType))
+                        {
+                            formatObject = GetFormatObject(model!, update.FormatType);
+                            ExecuteCancellableModelMutation(
+                                () => measure.FormatInformation = formatObject,
+                                ct);
+                            changedProperties.Add("Format");
+                        }
+
+                        if (update.Description != null)
+                        {
+                            var currentDescription = measure.Description?.ToString() ?? string.Empty;
+                            if (!string.Equals(currentDescription, update.Description, StringComparison.Ordinal))
+                            {
+                                ExecuteCancellableModelMutation(
+                                    () => measure.Description = update.Description,
+                                    ct);
+                                changedProperties.Add("Description");
+                            }
+                        }
+
+                        outcomes.Add(new DataModelMeasureUpdateOutcome
+                        {
+                            MeasureName = update.MeasureName,
+                            Updated = changedProperties.Count > 0,
+                            ChangedProperties = changedProperties
+                        });
+                        progress?.Report(new ProgressInfo
+                        {
+                            Current = index + 1,
+                            Total = preparedUpdates.Count,
+                            Message = changedProperties.Count > 0
+                                ? $"Updated measure '{update.MeasureName}'"
+                                : $"Skipped unchanged measure '{update.MeasureName}'"
+                        });
+                    }
+                    finally
+                    {
+                        ComUtilities.Release(ref measure);
+                    }
+                }
+            }
+            finally
+            {
+                ComUtilities.Release(ref model);
+            }
+
+            int updatedCount = outcomes.Count(item => item.Updated);
+            return new DataModelMeasureBatchUpdateResult
+            {
+                Success = true,
+                FilePath = batch.WorkbookPath,
+                Requested = outcomes.Count,
+                Updated = updatedCount,
+                Unchanged = outcomes.Count - updatedCount,
+                Measures = outcomes,
+                Message = $"Updated {updatedCount} measure(s); skipped {outcomes.Count - updatedCount} unchanged measure(s)."
+            };
+        }));
+    }
+
+    private static void ValidateMeasureUpdates(List<DataModelMeasureUpdate>? updates)
+    {
+        if (updates == null || updates.Count == 0)
+        {
+            throw new ArgumentException("At least one measure update is required.", nameof(updates));
+        }
+
+        if (updates.Count > 100)
+        {
+            throw new ArgumentException("A maximum of 100 measure updates is allowed per request.", nameof(updates));
+        }
+
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var update in updates)
+        {
+            if (update == null || string.IsNullOrWhiteSpace(update.MeasureName))
+            {
+                throw new ArgumentException("Every measure update requires measureName.", nameof(updates));
+            }
+
+            if (!names.Add(update.MeasureName.Trim()))
+            {
+                throw new ArgumentException($"Duplicate measure name '{update.MeasureName}'.", nameof(updates));
+            }
+
+            ValidateMeasureFormatType(update.FormatType);
+            if (string.IsNullOrEmpty(update.DaxFormula)
+                && string.IsNullOrEmpty(update.FormatType)
+                && update.Description == null)
+            {
+                throw new ArgumentException(
+                    $"Measure '{update.MeasureName}' has no changes. Specify daxFormula, formatType, or description.",
+                    nameof(updates));
+            }
+        }
+    }
+
+    private static void ExecuteCancellableModelMutation(Action mutation, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        OleMessageFilter.SetPendingCancellationToken(cancellationToken);
+        OleMessageFilter.EnterLongOperation();
+        try
+        {
+            mutation();
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+        catch (System.Runtime.InteropServices.COMException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw new OperationCanceledException(cancellationToken);
+        }
+        finally
+        {
+            _ = OleMessageFilter.ExitLongOperation();
+            OleMessageFilter.ClearPendingCancellationToken();
+        }
     }
 
     /// <inheritdoc />

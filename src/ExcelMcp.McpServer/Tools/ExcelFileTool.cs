@@ -20,6 +20,7 @@ public static partial class ExcelFileTool
     /// If file is already open, reuse existing sessionId instead of opening again.
     ///
     /// IMPORTANT: Before closing, check 'list' action - wait for canClose=true (no active operations).
+    /// Use 'cancel' only to abort a stuck operation; it force-closes the session and discards unsaved changes.
     /// If show=true was used, confirm with user before closing visible Excel windows.
     ///
     /// TIMEOUT: Open/create default to 120 seconds. Use timeout_seconds to customize
@@ -34,7 +35,7 @@ public static partial class ExcelFileTool
     /// </summary>
     /// <param name="action">The file operation to perform</param>
     /// <param name="path">Full Windows path to Excel file (.xlsx or .xlsm). ASK USER for the path - do not guess or use placeholder usernames. Required for: open, create, test</param>
-    /// <param name="session_id">Session ID returned from 'open' or 'create'. Required for: close. Used by all other tools.</param>
+    /// <param name="session_id">Session ID returned from 'open' or 'create'. Required for: close, cancel. Used by all other tools.</param>
     /// <param name="save">Whether to save changes when closing. Default: false (discard changes)</param>
     /// <param name="show">Whether to make Excel window visible. Default: false (hidden automation)</param>
     /// <param name="timeout_seconds">Maximum time in seconds for opening/creating the session and for operations in this session. Default: 120. Range: 10-3600. Used for: open, create</param>
@@ -78,6 +79,7 @@ public static partial class ExcelFileTool
                     FileAction.List => ListSessions(),
                     FileAction.Open => OpenSessionAsync(path!, show, timeout),
                     FileAction.Close => CloseSessionAsync(session_id!, save),
+                    FileAction.Cancel => CancelSessionAsync(session_id!),
                     FileAction.Create => CreateSessionAsync(path!, show, timeout),
                     FileAction.Test => TestFileAsync(path!),
                     _ => throw new ArgumentException($"Unknown action: {action} ({action.ToActionString()})", nameof(action))
@@ -214,6 +216,46 @@ public static partial class ExcelFileTool
             success = true,
             session_id = sessionId,
             saved = save
+        }, ExcelToolsBase.JsonOptions);
+    }
+
+    /// <summary>
+    /// Force-closes a session to abort queued or stuck work. Unsaved changes are discarded.
+    /// </summary>
+    private static string CancelSessionAsync(string sessionId)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            throw new ArgumentException("sessionId is required for 'cancel' action", nameof(sessionId));
+        }
+
+        var response = ServiceBridge.ServiceBridge.SendAsync(
+            "session.cancel",
+            sessionId).GetAwaiter().GetResult();
+
+        if (!response.Success)
+        {
+            var errorMessage = response.ErrorMessage ?? "Failed to cancel session";
+            return JsonSerializer.Serialize(new
+            {
+                success = false,
+                session_id = sessionId,
+                error = errorMessage,
+                errorMessage,
+                errorCategory = response.ErrorCategory,
+                exceptionType = response.ExceptionType,
+                hresult = response.HResult,
+                innerError = response.InnerError,
+                isError = true
+            }, ExcelToolsBase.JsonOptions);
+        }
+
+        return response.Result ?? JsonSerializer.Serialize(new
+        {
+            success = true,
+            session_id = sessionId,
+            cancelled = true,
+            saved = false
         }, ExcelToolsBase.JsonOptions);
     }
 

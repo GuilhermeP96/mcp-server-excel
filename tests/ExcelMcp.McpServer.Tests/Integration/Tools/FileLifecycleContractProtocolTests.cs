@@ -34,7 +34,7 @@ public sealed class FileLifecycleContractProtocolTests : McpIntegrationTestBase
             .Select(value => value.GetString()!)
             .ToArray();
 
-        Assert.Equal(["list", "open", "close", "create", "test"], actions);
+        Assert.Equal(["list", "open", "close", "cancel", "create", "test"], actions);
         Assert.DoesNotContain("close-workbook", actions);
     }
 

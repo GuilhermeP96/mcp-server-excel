@@ -192,7 +192,22 @@ public interface IDataModelCommands
         [FileOrValue] string? daxFormula = null,
         string? formatType = null,
         string? description = null,
-        bool formatDax = false);
+        bool formatDax = false,
+        IProgress<Sbroenne.ExcelMcp.ComInterop.ProgressInfo>? progress = null);
+
+    /// <summary>
+    /// Updates multiple existing measures while opening the Data Model only once.
+    /// Values that already match are skipped to avoid unnecessary Power Pivot recompilation.
+    /// </summary>
+    /// <param name="batch">Excel batch context for accessing workbook</param>
+    /// <param name="updates">Measure mutations to apply. Names must be unique.</param>
+    /// <param name="progress">Optional progress reporter with periodic heartbeat messages during long COM calls.</param>
+    /// <returns>Counts and per-measure update outcomes.</returns>
+    [ServiceAction("update-measures")]
+    DataModelMeasureBatchUpdateResult UpdateMeasures(
+        IExcelBatch batch,
+        [RequiredParameter] List<DataModelMeasureUpdate> updates,
+        IProgress<Sbroenne.ExcelMcp.ComInterop.ProgressInfo>? progress = null);
 
     /// <summary>
     /// Executes a DAX EVALUATE query against the Data Model and returns the results.

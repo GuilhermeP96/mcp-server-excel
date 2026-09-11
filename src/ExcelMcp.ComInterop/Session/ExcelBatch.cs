@@ -720,6 +720,11 @@ internal sealed class ExcelBatch : IExcelBatch, IExcelBatchTeardownState
         Func<ExcelContext, CancellationToken, T> operation,
         CancellationToken cancellationToken = default)
     {
+        using var linkedCancellationSource = CreateLinkedCancellationSource(
+            cancellationToken,
+            OperationCancellationContext.Current,
+            out cancellationToken);
+
         ObjectDisposedException.ThrowIf(_disposed != 0, nameof(ExcelBatch));
 
         // Fail fast if a previous operation timed out or was cancelled while the STA thread
@@ -833,6 +838,28 @@ internal sealed class ExcelBatch : IExcelBatch, IExcelBatchTeardownState
             _operationTimedOut = true; // STA thread may still be blocked — session is unusable
             throw;
         }
+    }
+
+    private static CancellationTokenSource? CreateLinkedCancellationSource(
+        CancellationToken commandToken,
+        CancellationToken requestToken,
+        out CancellationToken effectiveToken)
+    {
+        if (!commandToken.CanBeCanceled)
+        {
+            effectiveToken = requestToken;
+            return null;
+        }
+
+        if (!requestToken.CanBeCanceled || commandToken == requestToken)
+        {
+            effectiveToken = commandToken;
+            return null;
+        }
+
+        var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(commandToken, requestToken);
+        effectiveToken = linkedSource.Token;
+        return linkedSource;
     }
 
     private void UpdateVisibilitySnapshot()

@@ -5,13 +5,14 @@ namespace Sbroenne.ExcelMcp.McpServer.ServiceBridge;
 
 internal interface IServiceBridgeBackend : IDisposable
 {
-    Task<ServiceResponse> ProcessAsync(ServiceRequest request);
+    Task<ServiceResponse> ProcessAsync(ServiceRequest request, CancellationToken cancellationToken);
     bool ForceCloseSession(string sessionId);
 }
 
 internal sealed class ExcelMcpServiceBackend(Service.ExcelMcpService service) : IServiceBridgeBackend
 {
-    public Task<ServiceResponse> ProcessAsync(ServiceRequest request) => service.ProcessAsync(request);
+    public Task<ServiceResponse> ProcessAsync(ServiceRequest request, CancellationToken cancellationToken) =>
+        service.ProcessAsync(request, cancellationToken);
 
     public bool ForceCloseSession(string sessionId) => service.SessionManager.CloseSession(sessionId, save: false, force: true);
 
@@ -105,11 +106,11 @@ public static class ServiceBridge
         };
 
         var service = _service!;
-        var processTask = Task.Run(async () => await service.ProcessAsync(request), CancellationToken.None);
-
         if (!timeoutSeconds.HasValue && !cancellationToken.CanBeCanceled)
         {
-            return await processTask;
+            return await Task.Run(
+                async () => await service.ProcessAsync(request, CancellationToken.None),
+                CancellationToken.None);
         }
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -117,6 +118,10 @@ public static class ServiceBridge
         {
             cts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds.Value));
         }
+
+        var processTask = Task.Run(
+            async () => await service.ProcessAsync(request, cts.Token),
+            CancellationToken.None);
 
         try
         {
@@ -188,7 +193,7 @@ public static class ServiceBridge
 
         var completedTask = await Task.WhenAny(
             processTask,
-            Task.Delay(TimeSpan.FromMilliseconds(50))).ConfigureAwait(false);
+            Task.Delay(TimeSpan.FromSeconds(2))).ConfigureAwait(false);
 
         if (completedTask == processTask)
         {

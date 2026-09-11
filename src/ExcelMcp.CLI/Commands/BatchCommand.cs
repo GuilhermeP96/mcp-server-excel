@@ -72,7 +72,10 @@ internal sealed class BatchCommand : AsyncCommand<BatchCommand.Settings>
                 : null;
             try
             {
-                ServiceRegistry.ValidateCommandArguments(cmd.Command, argsJson);
+                if (!cmd.Command.StartsWith("measurejob.", StringComparison.OrdinalIgnoreCase))
+                {
+                    ServiceRegistry.ValidateCommandArguments(cmd.Command, argsJson);
+                }
             }
             catch (Exception ex) when (ex is ArgumentException or JsonException or IOException or UnauthorizedAccessException)
             {

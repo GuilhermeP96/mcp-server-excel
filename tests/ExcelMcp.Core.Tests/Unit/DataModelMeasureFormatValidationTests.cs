@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Sbroenne.ExcelMcp.ComInterop.Session;
 using Sbroenne.ExcelMcp.Core.Commands;
+using Sbroenne.ExcelMcp.Core.Models;
 using Xunit;
 using Excel = Microsoft.Office.Interop.Excel;
 
@@ -47,6 +48,37 @@ public class DataModelMeasureFormatValidationTests
         Assert.Equal(
             "Unknown measure format type: 'Scientific'. Valid values: General, Currency, Decimal, Percentage, WholeNumber. (Parameter 'formatType')",
             exception.Message);
+        Assert.Equal(0, batch.ExecuteCalls);
+    }
+
+    [Fact]
+    public void UpdateMeasures_WithDuplicateNames_RejectsBeforeBatchExecution()
+    {
+        using var batch = new RejectingBatch();
+
+        var exception = Assert.Throws<ArgumentException>(() =>
+            _commands.UpdateMeasures(batch,
+            [
+                new DataModelMeasureUpdate { MeasureName = "Ticket", DaxFormula = "1" },
+                new DataModelMeasureUpdate { MeasureName = " ticket ", DaxFormula = "2" }
+            ]));
+
+        Assert.Contains("Duplicate measure name", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(0, batch.ExecuteCalls);
+    }
+
+    [Fact]
+    public void UpdateMeasures_WithNoMutation_RejectsBeforeBatchExecution()
+    {
+        using var batch = new RejectingBatch();
+
+        var exception = Assert.Throws<ArgumentException>(() =>
+            _commands.UpdateMeasures(batch,
+            [
+                new DataModelMeasureUpdate { MeasureName = "Ticket" }
+            ]));
+
+        Assert.Contains("has no changes", exception.Message, StringComparison.Ordinal);
         Assert.Equal(0, batch.ExecuteCalls);
     }
 

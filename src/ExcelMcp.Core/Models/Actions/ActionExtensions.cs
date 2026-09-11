@@ -11,6 +11,7 @@ public static class ActionExtensions
         FileAction.List => "list",
         FileAction.Open => "open",
         FileAction.Close => "close",
+        FileAction.Cancel => "cancel",
         FileAction.Create => "create",
         FileAction.Test => "test",
         _ => throw new ArgumentException($"Unknown FileAction: {action}")
