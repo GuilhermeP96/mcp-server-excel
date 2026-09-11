@@ -6,7 +6,7 @@ Read, write, calculate, and format cells while managing worksheets, workbooks, n
 
 ---
 
-## 📁 File Operations (5 operations)
+## 📁 File Operations (6 operations)
 
 Open, create, and close Excel workbooks. Every other tool works on a session opened here.
 

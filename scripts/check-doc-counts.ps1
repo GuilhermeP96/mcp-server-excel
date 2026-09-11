@@ -130,8 +130,20 @@ if ($fileOps -eq 0) {
     exit 1
 }
 
-$canonicalTools = $manifestTools - 1 + 1        # - diag + file
-$canonicalOps = $manifestOps - $diagOps + $fileOps
+# datamodel-job: hand-written async job tool, absent from the Core manifest.
+$dataModelJobToolPath = Join-Path $rootDir "src\ExcelMcp.McpServer\Tools\ExcelDataModelJobTool.cs"
+$dataModelJobContent = Get-Content $dataModelJobToolPath -Raw
+$dataModelJobEnumMatch = [regex]::Match($dataModelJobContent, 'enum\s+DataModelJobAction\s*\{(?<body>[^}]*)\}')
+if (-not $dataModelJobEnumMatch.Success) {
+    Write-Host "ERROR: Could not locate the DataModelJobAction enum in ExcelDataModelJobTool.cs" -ForegroundColor Red
+    exit 1
+}
+$dataModelJobOps = ([regex]::Matches($dataModelJobEnumMatch.Groups['body'].Value, 'JsonStringEnumMemberName')).Count
+
+$manualToolCount = 2 # file + datamodel-job
+$manualOperationCount = $fileOps + $dataModelJobOps
+$canonicalTools = $manifestTools - 1 + $manualToolCount
+$canonicalOps = $manifestOps - $diagOps + $manualOperationCount
 
 # ---------------------------------------------------------------------------
 # 3. Cross-check against the REAL MCP tool surface ([McpServerTool(Name=...)])
@@ -159,6 +171,9 @@ if ($mcpToolNames.Contains('diag')) {
 if (-not $mcpToolNames.Contains('file')) {
     Add-Failure "No 'file' MCP tool found - the user-facing count assumption (file adds $fileOps ops) is broken. Update this script and the csproj ExtraOperationCount."
 }
+if (-not $mcpToolNames.Contains('datamodel-job')) {
+    Add-Failure "No 'datamodel-job' MCP tool found - the user-facing count assumption is broken. Update this script and the csproj extra counts."
+}
 
 # ---------------------------------------------------------------------------
 # 4. Cross-check the csproj GenerateSkillFile parameters stay in sync
@@ -168,13 +183,13 @@ foreach ($proj in @("src\ExcelMcp.McpServer\ExcelMcp.McpServer.csproj", "src\Exc
     if (-not (Test-Path $projPath)) { continue }
     $projContent = Get-Content $projPath -Raw
     $extraOpsMatch = [regex]::Match($projContent, 'ExtraOperationCount\s*=\s*"(\d+)"')
-    if ($extraOpsMatch.Success -and [int]$extraOpsMatch.Groups[1].Value -ne $fileOps) {
-        Add-Failure ("$proj sets ExtraOperationCount={0} but FileAction has {1} operations. They must match so the generated SKILL.md count is correct." -f $extraOpsMatch.Groups[1].Value, $fileOps)
+    if ($extraOpsMatch.Success -and [int]$extraOpsMatch.Groups[1].Value -ne $manualOperationCount) {
+        Add-Failure ("$proj sets ExtraOperationCount={0} but manual tools expose {1} operations. They must match so the generated SKILL.md count is correct." -f $extraOpsMatch.Groups[1].Value, $manualOperationCount)
     }
 }
 
 Write-Host "Canonical (from code): $canonicalTools tools, $canonicalOps operations" -ForegroundColor Cyan
-Write-Host "  manifest: $manifestTools tools / $manifestOps ops; - diag($diagOps) + file($fileOps); MCP tool surface: $($mcpToolNames.Count) tools" -ForegroundColor DarkGray
+Write-Host "  manifest: $manifestTools tools / $manifestOps ops; - diag($diagOps) + file($fileOps) + datamodel-job($dataModelJobOps); MCP tool surface: $($mcpToolNames.Count) tools" -ForegroundColor DarkGray
 
 # ---------------------------------------------------------------------------
 # 5. Validate headline claims across user-facing docs

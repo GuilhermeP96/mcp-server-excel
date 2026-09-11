@@ -9,7 +9,7 @@ namespace Sbroenne.ExcelMcp.McpServer.Tests.Integration;
 /// THE BUG THIS PREVENTS
 /// ---------------------
 /// The banner used to carry the hard-coded literal "Provides 22 tools with 195+ operations".
-/// The real surface had grown to 31 tools / 326 operations, so the binary told users something
+/// The real surface had grown beyond its documented count, so the binary told users something
 /// that contradicted every README, SKILL.md and the live <c>tools/list</c> response.
 ///
 /// <see cref="McpToolSurface"/> now derives BOTH numbers by reflecting over the actual

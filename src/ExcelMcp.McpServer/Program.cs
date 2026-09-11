@@ -442,7 +442,7 @@ public class Program
     ///
     /// The tool and operation counts are DERIVED from the live <c>[McpServerTool]</c> registration
     /// via <see cref="McpToolSurface"/>, never hard-coded. A hard-coded literal here previously
-    /// drifted to "22 tools with 195+ operations" while the real surface was 31 tools / 326
+    /// drifted to "22 tools with 195+ operations" while the real surface was much larger
     /// operations, contradicting every README and the server's own <c>tools/list</c> response.
     ///
     /// Exposed internally, rather than inlined into <see cref="ShowHelp"/>, so tests can assert

@@ -1,6 +1,6 @@
 # ExcelMcp - Complete Feature Reference
 
-**31 specialized tools with 326 operations for comprehensive Excel automation**
+**32 specialized tools with 331 operations for comprehensive Excel automation**
 
 Excel MCP Server automates the real Microsoft Excel application through four focused capability areas. Start with the category that matches your goal, or use the quick reference below to find a tool for a specific task.
 
@@ -33,7 +33,7 @@ cover the most common jobs end to end:
 | Task | Tool | Feature reference |
 |------|------|-------------------|
 | Import or transform data | `powerquery`; `connection` for existing OLEDB/ODBC sources; `querytable` for direct text/web imports | [Data & Analytics](docs/features/DATA-ANALYTICS.md) |
-| Build a Power Pivot model and DAX measures | `datamodel` | [Data Model & DAX](https://excelmcpserver.dev/features/data-analytics/#data-model-dax-power-pivot) |
+| Build a Power Pivot model and DAX measures | `datamodel`; `datamodel-job` for long-running measure batches | [Data Model & DAX](https://excelmcpserver.dev/features/data-analytics/#data-model-dax-power-pivot) |
 | Create or update a PivotTable for aggregation | `pivottable` | [PivotTables](https://excelmcpserver.dev/features/data-analytics/#pivottables) |
 | Find an input for a target result, compare scenarios, or build What-If data tables | `analysis` | [What-If Analysis](https://excelmcpserver.dev/features/automation-advanced/#what-if-analysis) |
 | Visualize data | `chart` | [Charts](https://excelmcpserver.dev/features/charts-visuals/#charts) |

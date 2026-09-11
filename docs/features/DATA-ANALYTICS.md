@@ -42,9 +42,11 @@ Import, transform, and refresh data with Power Query. Every operation is a singl
 
 ---
 
-## 📊 Data Model & DAX (Power Pivot) (20 operations)
+## 📊 Data Model & DAX (Power Pivot) (21 operations)
 
 Build a Power Pivot Data Model — manage tables, DAX measures, and relationships, then query it.
+
+- **Update Measures:** Apply multiple measure mutations in one open model session and skip unchanged formulas
 
 **Tables & Columns:**
 - **List Tables:** Discover all tables in the Data Model
@@ -82,6 +84,14 @@ Build a Power Pivot Data Model — manage tables, DAX measures, and relationship
 - **COM limitations:** Excel exposes calculated columns as read-only entries but provides no reliable PIA formula/mutation or live refresh-status API. Use Power Query for computed columns.
 
 ---
+
+## ⏱️ Asynchronous Data Model Jobs (3 operations)
+
+- **Start:** Launch a long-running measure batch and return an operation ID immediately
+- **Status:** Read the current measure, counts, elapsed time, active operations, save state, process ID, and root error
+- **Cancel:** Request idempotent cancellation and discard partial unsaved changes
+
+See [Long-running Data Model operations](long-running-data-model-operations.md) for the full workflow and limitations.
 
 ## 📇 Excel Tables (ListObjects) (28 operations)
 

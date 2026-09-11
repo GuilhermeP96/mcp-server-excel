@@ -58,12 +58,13 @@ pwsh -ExecutionPolicy Bypass -File `
 
 ## What You Can Do
 
-**31 specialized tools with 326 operations** for comprehensive Excel automation:
+**32 specialized tools with 331 operations** for comprehensive Excel automation:
 
 ### Core Operations
 
 - **Power Query** (12 ops) — Create, update, refresh; optional remote M code formatting
-- **Data Model/DAX** (20 ops) — Measures, relationships, source metadata, EVALUATE queries
+- **Data Model/DAX** (21 ops) — Measures, batch updates, relationships, source metadata, EVALUATE queries
+- **Data Model Jobs** (3 ops) — Start, monitor, and cancel long-running measure batches
 - **PivotTables** (35 ops) — Fields, grouping, cache options, drill-through, calculations
 - **Excel Tables** (27 ops) — Lifecycle, filtering, sorting, DAX-backed tables
 - **Charts** (33 ops) — Combo series, plotting, placement, formatting, labels, trendlines
@@ -89,7 +90,7 @@ pwsh -ExecutionPolicy Bypass -File `
 
 ### File Operations
 
-- **File Operations** (5 ops) — Create, open, close, list, and test files
+- **File Operations** (6 ops) — Create, open, close, cancel, list, and test files
 - **IRM/AIP Support** — Auto-detects protected files, opens with Excel visible for authentication
 
 **Complete documentation:** [Full Feature Reference](https://excelmcpserver.dev/features/)

@@ -1194,7 +1194,7 @@ def _write_llm_outputs(config) -> None:
         "# Excel MCP Server",
         "",
         "> Excel MCP Server (ExcelMcp) automates the real Microsoft Excel "
-        "application through its COM API, exposing 31 tools and 325 operations to AI assistants "
+        "application through its COM API, exposing 32 tools and 331 operations to AI assistants "
         "over the Model Context Protocol and to scripts through "
         "the `excelcli` command line. Unlike file-parser libraries it can refresh "
         "Power Query, evaluate DAX against the Data Model, refresh PivotTables, "
