@@ -69,13 +69,26 @@ public sealed class PreBuildGracefulSaveAcceptanceTests : IClassFixture<TempDire
             var sessionId = createJson.RootElement.GetProperty("sessionId").GetString();
             Assert.False(string.IsNullOrWhiteSpace(sessionId));
 
+            const string acceptanceSheet = "AcceptanceData";
+            var createSheet = await RunCliAsync(
+                releaseCli,
+                selectedPipe,
+                [
+                    "sheet", "create",
+                    "--session", sessionId!,
+                    "--sheet-name", acceptanceSheet,
+                    "--quiet"
+                ],
+                TimeSpan.FromSeconds(30));
+            Assert.Equal(0, createSheet.ExitCode);
+
             var write = await RunCliAsync(
                 releaseCli,
                 selectedPipe,
                 [
                     "range", "set-values",
                     "--session", sessionId!,
-                    "--sheet-name", "Sheet1",
+                    "--sheet-name", acceptanceSheet,
                     "--range-address", "A1",
                     "--values", JsonSerializer.Serialize(new[] { new[] { marker } }),
                     "--quiet"
@@ -137,7 +150,7 @@ public sealed class PreBuildGracefulSaveAcceptanceTests : IClassFixture<TempDire
                 [
                     "range", "get-values",
                     "--session", reopenedSessionId!,
-                    "--sheet-name", "Sheet1",
+                    "--sheet-name", acceptanceSheet,
                     "--range-address", "A1",
                     "--quiet"
                 ],

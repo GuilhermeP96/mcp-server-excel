@@ -68,7 +68,7 @@ try {
 
     Write-Host $staleCleanupOutput
 
-    if ($staleCleanupOutput -notmatch 'Passed!.*Passed:\s*[1-9]') {
+    if ($staleCleanupOutput -notmatch '(Passed!.*Passed|Aprovado!.*Aprovado):\s*[1-9]') {
         throw "No stale-build graceful-save acceptance test passed. Verify the filter still matches $staleCleanupAcceptanceFilter."
     }
 
@@ -94,7 +94,7 @@ try {
 
     Write-Host $testOutput
 
-    if ($testOutput -notmatch 'Passed!.*Passed:\s*[1-9]') {
+    if ($testOutput -notmatch '(Passed!.*Passed|Aprovado!.*Aprovado):\s*[1-9]') {
         throw "No MCP E2E tests passed. Verify the filter still matches $smokeTestFilter."
     }
 
