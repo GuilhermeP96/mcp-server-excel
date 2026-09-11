@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using Sbroenne.ExcelMcp.CLI.Infrastructure;
 using Sbroenne.ExcelMcp.Core.Tests.Helpers;
@@ -101,8 +102,10 @@ public sealed class PreBuildGracefulSaveAcceptanceTests : IClassFixture<TempDire
                 File.GetLastWriteTimeUtc(safetySource) > File.GetLastWriteTimeUtc(releaseCli),
                 "The current protocol source must be newer than the locked CLI.");
 
+            var dotnetHost = ResolveDotnetHost();
+            var dotnetRoot = Path.GetDirectoryName(dotnetHost)!;
             var build = await RunProcessAsync(
-                "dotnet",
+                dotnetHost,
                 [
                     "build",
                     Path.Combine(
@@ -119,7 +122,9 @@ public sealed class PreBuildGracefulSaveAcceptanceTests : IClassFixture<TempDire
                 repositoryRoot,
                 new Dictionary<string, string>
                 {
-                    ["EXCELMCP_CLI_PIPE"] = selectedPipe
+                    ["EXCELMCP_CLI_PIPE"] = selectedPipe,
+                    ["DOTNET_ROOT"] = dotnetRoot,
+                    ["Path"] = $"{dotnetRoot}{Path.PathSeparator}{Environment.GetEnvironmentVariable("Path")}"
                 },
                 TimeSpan.FromMinutes(4));
 
@@ -188,6 +193,14 @@ public sealed class PreBuildGracefulSaveAcceptanceTests : IClassFixture<TempDire
         startInfo.ArgumentList.Add(pipeName);
         startInfo.ArgumentList.Add("--quiet");
         return Process.Start(startInfo)!;
+    }
+
+    private static string ResolveDotnetHost()
+    {
+        var runtimeDirectory = RuntimeEnvironment.GetRuntimeDirectory();
+        var dotnetRoot = Path.GetFullPath(Path.Combine(runtimeDirectory, "..", "..", ".."));
+        var currentRuntimeHost = Path.Combine(dotnetRoot, "dotnet.exe");
+        return File.Exists(currentRuntimeHost) ? currentRuntimeHost : "dotnet";
     }
 
     private static async Task WaitForDaemonReadyAsync(string cliPath, string pipeName)
